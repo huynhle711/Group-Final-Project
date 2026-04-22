@@ -1,15 +1,13 @@
+import java.net.URL;
 import java.util.Random;
 import java.util.Scanner;
-import java.net. URL;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import javax.swing.*;
-import java.awt.*;
 
 public class SongGenerator {
 
     public static String fetchJSON(String url) {
-
         URL url1;
         Scanner scan;
 
@@ -17,7 +15,7 @@ public class SongGenerator {
             url1 = new URL(url);
             scan = new Scanner(url1.openStream());
         } catch (Exception e) {
-            return "{ \"title\": \"ERROR\" }";
+            return "{ \"count\": 0, \"recordings\": [] }";
         }
 
         StringBuilder data = new StringBuilder();
@@ -25,49 +23,50 @@ public class SongGenerator {
         while (scan.hasNextLine()) {
             data.append(scan.nextLine());
         }
+
+        scan.close();
         return data.toString();
     }
-}
-public static final String ANSI_RED = "\u001B[31m";
-public static final String ANSI_RESET = "\u001B[0m";
 
-public static void main(String[] args) {
-    Random random = new Random();
-    Scanner scanner = new Scanner(System.in);
+    public static String[] getSong(String genre) {
+        Random random = new Random();
 
+        genre = genre.replaceAll("\\s", "-");
 
-    System.out.println("Enter your genre: ");
-    String genre = scanner.nextLine();
-    genre = genre.replaceAll("\\s", "-");
-    System.out.println("Your genre is " +   ANSI_RED + genre + ANSI_RESET + ". Please wait for response to load(It can take a while).");
+        String pageURL = "https://musicbrainz.org/ws/2/recording?query=tag:" + genre + "&limit=1&fmt=json";
+        String pageJSON = fetchJSON(pageURL);
 
-    String pageURL = "https://musicbrainz.org/ws/2/recording?query=tag:" + genre + "&limit=1&fmt=json";
+        JsonObject countObj = JsonParser.parseString(pageJSON).getAsJsonObject();
+        int pages = countObj.get("count").getAsInt();
 
-    String pageJSON = SongGenerator.fetchJSON(pageURL);
+        if (pages == 0) {
+            return new String[]{"No song found", "No artist found"};
+        }
 
-    JsonObject countObj = JsonParser.parseString(pageJSON).getAsJsonObject();
-    int pages = countObj.get("count").getAsInt();
-    int max = Math.min(pages, 10000);
+        int max = Math.min(pages, 10000);
+        int randomPage = random.nextInt(max);
 
-    int randomPage = random.nextInt(0, max);
+        String url = "https://musicbrainz.org/ws/2/recording?query=tag:" + genre + "&limit=1&offset=" + randomPage + "&fmt=json";
+        String data = fetchJSON(url);
 
-    String url = "https://musicbrainz.org/ws/2/recording?query=tag:" + genre + "&limit=1&offset=" + randomPage + "&fmt=json";
-    String data = SongGenerator.fetchJSON(url);
+        JsonObject obj = JsonParser.parseString(data).getAsJsonObject();
 
-    JsonObject obj = JsonParser.parseString(data).getAsJsonObject();
+        if (!obj.has("recordings") || obj.getAsJsonArray("recordings").size() == 0) {
+            return new String[]{"No song found", "No artist found"};
+        }
 
-    JsonObject song = obj.getAsJsonArray("recordings")
-            .get(0)
-            .getAsJsonObject();
+        JsonObject song = obj.getAsJsonArray("recordings")
+                .get(0)
+                .getAsJsonObject();
 
-    String title = song.get("title").getAsString();
+        String title = song.get("title").getAsString();
 
-    String artist = song.getAsJsonArray("artist-credit")
-            .get(0)
-            .getAsJsonObject()
-            .get("name")
-            .getAsString();
+        String artist = song.getAsJsonArray("artist-credit")
+                .get(0)
+                .getAsJsonObject()
+                .get("name")
+                .getAsString();
 
-    System.out.println("Title: " + title);
-    System.out.println("Artist: " + artist);
+        return new String[]{title, artist};
+    }
 }
